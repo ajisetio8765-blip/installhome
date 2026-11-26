@@ -6,9 +6,11 @@ set -euo pipefail
 GITHUB_USER="ajisetio8765-blip"
 GITHUB_REPO="installhome"
 BRANCH="main"
+RELEASE_TAG="v1.0.0"
 
 SELF_URL="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${BRANCH}/install.sh"
-ARCHIVE_URL="https://github.com/${GITHUB_USER}/${GITHUB_REPO}/releases/latest/download/homeserver-theme.tar.gz"
+ARCHIVE_URL="https://github.com/${GITHUB_USER}/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/homeserver-theme.tar.gz"
+ARCHIVE_URL_LATEST="https://github.com/${GITHUB_USER}/${GITHUB_REPO}/releases/latest/download/homeserver-theme.tar.gz"
 
 if [ "$(id -u)" != "0" ]; then
   if command -v sudo >/dev/null 2>&1; then
@@ -149,12 +151,12 @@ spinner() {
   local i=0
   while kill -0 $pid 2>/dev/null; do
     i=$(( (i + 1) % 10 ))
-    printf "\r  %s %s" "$(echo "$frames" | cut -d' ' -f$((i + 1)))" "$msg" >&2
+    printf "\r\033[K  %s %s" "$(echo "$frames" | cut -d' ' -f$((i + 1)))" "$msg" >&2
     sleep 0.12
   done
   wait $pid
   local code=$?
-  printf "\r%b" "$C_RESET" >&2
+  printf "\r\033[K%b" "$C_RESET" >&2
   return $code
 }
 
@@ -286,11 +288,15 @@ ARCHIVE="$TMP_DIR/theme.tar.gz"
 EXTRACT="$TMP_DIR/extract"
 mkdir -p "$EXTRACT"
 
-spinner "$(T "Mengunduh paket dari GitHub..." "Downloading package from GitHub...")" curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE" || fail "$(T "Gagal unduh paket dari GitHub." "Failed to download package from GitHub.")"
-[ -s "$ARCHIVE" ] || fail "$(T "File paket kosong atau rusak." "Package file is empty or broken.")"
+download_pkg() {
+  curl -fSL --retry 3 "$ARCHIVE_URL_LATEST" -o "$ARCHIVE" 2>/dev/null || curl -fSL --retry 3 "$ARCHIVE_URL" -o "$ARCHIVE"
+}
+
+spinner "$(T "Mengunduh paket dari GitHub..." "Downloading package from GitHub...")" download_pkg || fail "$(T "Gagal unduh paket dari GitHub (cek koneksi/rilis)." "Failed to download package from GitHub.")"
+tar -tzf "$ARCHIVE" >/dev/null 2>&1 || fail "$(T "Arsip rusak atau bukan format .tar.gz valid." "Archive broken or invalid .tar.gz format.")"
 ok "$(T "Paket siap." "Package ready.")"
 
-tar -xzf "$ARCHIVE" -C "$EXTRACT" >/dev/null 2>&1 || fail "$(T "Arsip rusak." "Archive broken.")"
+tar -xzf "$ARCHIVE" -C "$EXTRACT" >/dev/null 2>&1 || fail "$(T "Ekstrak arsip gagal." "Archive extraction failed.")"
 SWITCHER="$EXTRACT/theme-switcher"
 [ -f "$SWITCHER/install.sh" ] || fail "install.sh $(T "hilang." "missing.")"
 
