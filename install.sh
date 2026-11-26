@@ -238,7 +238,7 @@ need() { command -v "$1" >/dev/null 2>&1 || fail "$1 $(T "belum ada." "missing."
 
 auto_update_tools() {
   local missing=0
-  for b in curl tar rsync; do command -v "$b" >/dev/null 2>&1 || missing=1; done
+  for b in curl tar rsync unzip; do command -v "$b" >/dev/null 2>&1 || missing=1; done
   if ! command -v mysqldump >/dev/null 2>&1; then missing=1; fi
   if [ "$missing" = "1" ]; then
     log "$(T "Auto update tools yang kurang..." "Auto updating missing tools...")"
@@ -247,6 +247,7 @@ auto_update_tools() {
     command -v mysqldump >/dev/null 2>&1 || apt-get install -y -qq mariadb-client >/dev/null 2>&1 || true
     command -v curl >/dev/null 2>&1 || apt-get install -y -qq curl >/dev/null 2>&1 || true
     command -v tar >/dev/null 2>&1 || apt-get install -y -qq tar >/dev/null 2>&1 || true
+    command -v unzip >/dev/null 2>&1 || apt-get install -y -qq unzip >/dev/null 2>&1 || true
   fi
   if ! command -v composer >/dev/null 2>&1; then
     if [ -f "$PANEL_DIR/vendor/autoload.php" ]; then
@@ -282,9 +283,8 @@ if ! find_panel "$PANEL_DIR" >/dev/null 2>&1; then
 fi
 
 need curl
-need tar
 
-ARCHIVE="$TMP_DIR/theme.tar.gz"
+ARCHIVE="$TMP_DIR/theme.pkg"
 EXTRACT="$TMP_DIR/extract"
 mkdir -p "$EXTRACT"
 
@@ -293,12 +293,28 @@ download_pkg() {
 }
 
 spinner "$(T "Mengunduh paket dari GitHub..." "Downloading package from GitHub...")" download_pkg || fail "$(T "Gagal unduh paket dari GitHub (cek koneksi/rilis)." "Failed to download package from GitHub.")"
-tar -tzf "$ARCHIVE" >/dev/null 2>&1 || fail "$(T "Arsip rusak atau bukan format .tar.gz valid." "Archive broken or invalid .tar.gz format.")"
-ok "$(T "Paket siap." "Package ready.")"
+[ -s "$ARCHIVE" ] || fail "$(T "File paket kosong." "Package file is empty.")"
 
-tar -xzf "$ARCHIVE" -C "$EXTRACT" >/dev/null 2>&1 || fail "$(T "Ekstrak arsip gagal." "Archive extraction failed.")"
-SWITCHER="$EXTRACT/theme-switcher"
-[ -f "$SWITCHER/install.sh" ] || fail "install.sh $(T "hilang." "missing.")"
+MAGIC="$(head -c 2 "$ARCHIVE" 2>/dev/null || true)"
+if [ "$MAGIC" = "PK" ]; then
+  need unzip
+  unzip -tq "$ARCHIVE" >/dev/null 2>&1 || fail "$(T "Arsip ZIP rusak." "Broken ZIP archive.")"
+  ok "$(T "Paket siap (ZIP)." "Package ready (ZIP).")"
+  unzip -q "$ARCHIVE" -d "$EXTRACT" >/dev/null 2>&1 || fail "$(T "Ekstrak ZIP gagal." "ZIP extraction failed.")"
+else
+  need tar
+  tar -tzf "$ARCHIVE" >/dev/null 2>&1 || fail "$(T "Arsip TAR.GZ rusak." "Broken TAR.GZ archive.")"
+  ok "$(T "Paket siap (TAR.GZ)." "Package ready (TAR.GZ).")"
+  tar -xzf "$ARCHIVE" -C "$EXTRACT" >/dev/null 2>&1 || fail "$(T "Ekstrak TAR.GZ gagal." "TAR.GZ extraction failed.")"
+fi
+
+SWITCHER_INSTALL="$(find "$EXTRACT" -maxdepth 3 -path "*/theme-switcher/install.sh" | head -n 1)"
+[ -n "$SWITCHER_INSTALL" ] || fail "theme-switcher/install.sh $(T "hilang." "missing.")"
+SWITCHER_DIR="$(dirname "$SWITCHER_INSTALL")"
+
+if [ -f "$SWITCHER_DIR/backend/patch.sh" ]; then
+  sed -i 's/    })$/    });/' "$SWITCHER_DIR/backend/patch.sh"
+fi
 
 say "$C_PURPLE" "  ─────────────────────────────"
-PANEL_DIR="$PANEL_DIR" HOMESERVER_LANG="$HS_LANG" HS_LANG="$HS_LANG" bash "$SWITCHER/install.sh" "$ACTION"
+PANEL_DIR="$PANEL_DIR" HOMESERVER_LANG="$HS_LANG" HS_LANG="$HS_LANG" bash "$SWITCHER_INSTALL" "$ACTION"
