@@ -3,12 +3,12 @@
 # Smart CLI wrapper, ID EN, direct GitHub pull, silent pull, y/n critical, auto update tools.
 set -euo pipefail
 
-GITHUB_USER="DalangStore"
-GITHUB_REPO="homeserver-theme"
+GITHUB_USER="ajisetio8765-blip"
+GITHUB_REPO="installhome"
 BRANCH="main"
 
 SELF_URL="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${BRANCH}/install.sh"
-ARCHIVE_URL="https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${BRANCH}/homeserver-theme.tar.gz"
+ARCHIVE_URL="https://github.com/${GITHUB_USER}/${GITHUB_REPO}/releases/latest/download/homeserver-theme.tar.gz"
 
 if [ "$(id -u)" != "0" ]; then
   if command -v sudo >/dev/null 2>&1; then
